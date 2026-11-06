@@ -49,6 +49,16 @@ function doGet(e) {
       if (r[2] === 'progress') { if (o.done.indexOf(r[3]) < 0) o.done.push(r[3]); o.last = r[3]; o.lastAt = r[0]; o.elapsed = r[4]; }
     });
   }
+  // 기도문·사진 개수
+  [['기도문', 'prayers'], ['사진', 'photos']].forEach(([name, key]) => {
+    const s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+    if (!s) return;
+    s.getDataRange().getValues().slice(1).forEach(r => {
+      const g = r[1]; if (!g) return;
+      const o = out[g] = out[g] || { group: g, done: [], startedAt: '', last: '', elapsed: null };
+      o[key] = (o[key] || 0) + 1;
+    });
+  });
   return json_({ ok: true, groups: out });
 }
 

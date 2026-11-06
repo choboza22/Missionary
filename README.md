@@ -22,6 +22,6 @@
 `python3 tools/gen_qr.py https://choboza22.github.io/Missionary/` (segno 필요: `pip install segno`) → `print-qr.html`·`print-qr-staff.html` (PDF: `node tools/make_pdf.js print-qr.html out.pdf`)(100주년 단어 QR 8개 h1~h8, 본당 카드 QR 6개 q1~q6; 정답표는 print-qr-staff.html). 코드는 QR 아래에 적혀 있어 스캔이 안 되면 직접 입력할 수 있습니다.
 
 ## 행사 전 확인
-- `js/config.js`: `endpoint` (신학관 방: 침묵 정렬 201호, 퀴즈 202호, 나만 모르는 미션 203호 반영됨)
+- `js/config.js`: `endpoint` (신학관 방: 퀴즈 201호, 나만 모르는 미션 202호, 침묵 정렬 203호 반영됨)
 - (선택) `assets/map.png` 에 캠퍼스 지도 넣기
 - 미션 내용 수정은 `js/data.js`
