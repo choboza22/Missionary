@@ -81,7 +81,7 @@
     delete S.done[id];
     if (id === 'silence') S.silence = {};
     if (id === 'quiz') S.quizPass = [];
-    if (id === 'secret') S.secretCard = null;
+    if (id === 'secret') 
     if (id === 'hundred') { S.seq = []; S.photoStep = false; }
     if (id === 'main') S.order = [];
     if (id === 'youth') { S.vseq = []; S.finalSec = null; }
@@ -279,17 +279,9 @@
   }
 
   function secret(head) {
-    const card = S.secretCard;
-    const body = card == null
-      ? `<ol class="rules"><li>조원 중 <b>한 명</b>을 정해요. 그 사람은 <b>뒤돌아서거나 눈을 감고</b> 화면을 보지 않아요.</li><li>나머지 조원이 미션지를 확인한 뒤, 그 사람을 불러요.</li><li>말·몸짓 힌트 금지! <b>박수 소리 크기</b>로만 이끌어요. (가까우면 크게, 멀면 작게)</li></ol>
-         <button class="btn" id="draw">미션지 뽑기 (조원만 보세요)</button>`
-      : `<div class="qrcard"><small>미션지 · 미션을 모르는 사람은 보지 마세요</small><p class="story">${esc(D.SECRET[card].t)}</p><p class="hint">힌트: ${esc(D.SECRET[card].tip)}</p></div>
-         ${timer(9)}<button class="btn" id="fin">미션 성공!</button><button class="btn ghost" id="redraw">다른 미션지로 바꾸기</button>`;
-    shell(head + body, { back: '#/road' });
-    const draw = () => { let n; do { n = Math.floor(Math.random() * D.SECRET.length); } while (D.SECRET.length > 1 && n === S.secretCard); S.secretCard = n; save(); secret(head); };
-    const d = document.getElementById('draw'); if (d) d.onclick = draw;
-    const r = document.getElementById('redraw'); if (r) r.onclick = draw;
-    const f = document.getElementById('fin'); if (f) { bindTimer(); f.onclick = () => { clear('secret'); stage('secret'); }; }
+    shell(head + `<ol class="rules"><li>스태프가 뽑기로 정해 준 미션을 확인해요.</li><li>조원 중 <b>한 명</b>은 미션을 모르는 사람이에요. <b>뒤돌아서거나 눈을 감고</b> 기다려요.</li><li>말·몸짓 힌트 금지! <b>박수 소리 크기</b>로만 이끌어요. (가까우면 크게, 멀면 작게)</li><li>미션이 끝나면 아래 버튼을 눌러요.</li></ol>
+      ${timer(9)}<button class="btn" id="fin">미션 성공!</button>`, { back: '#/road' });
+    bindTimer(); document.getElementById('fin').onclick = () => { clear('secret'); stage('secret'); };
   }
 
   function quiz(head) {
@@ -386,7 +378,8 @@
     }
     if (S.done.youth) {
       const sec = S.finalSec, mm = sec != null ? Math.floor(sec / 60) + '분 ' + (sec % 60) + '초' : '';
-      return shell(head + `<div class="clear"><div class="big">🎉 완성!</div><div class="frag">“나는 마음이 온유하고 겸손하니 나의 멍에를 메고 내게 배우라 그리하면 너희 마음이 쉼을 얻으리니”</div><div>${esc(C.verseRef)}</div>${mm ? `<div>걸린 시간 ${mm}</div>` : ''}</div><p class="hint">이 화면을 스태프에게 보여 주세요. 차를 드시며 쉬세요 ☕</p>`, { back: '#/road' });
+      shell(head + `<div class="clear"><div class="big">🎉 완성!</div><div class="frag">“나는 마음이 온유하고 겸손하니 나의 멍에를 메고 내게 배우라 그리하면 너희 마음이 쉼을 얻으리니”</div><div>${esc(C.verseRef)}</div>${mm ? `<div>걸린 시간 ${mm}</div>` : ''}</div><p class="hint">이 화면을 스태프에게 보여 주세요. 차를 드시며 쉬세요 ☕</p><button class="btn alt" id="cf">🎉 다시 축하하기</button>`, { back: '#/road' });
+      document.getElementById('cf').onclick = confetti; return;
     }
     const pool = [...D.VERSE_ORDER].sort(() => Math.random() - .5);
     const seq = S.vseq || [];
@@ -395,12 +388,27 @@
     document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
       S.vseq = [...seq, b.dataset.k]; save();
       if (S.vseq.length === 6) {
-        if (S.vseq.join() === D.VERSE_ORDER.join()) { S.finalSec = S.startedAt ? Math.round((Date.now() - S.startedAt) / 1000) : null; S.vseq = []; save(); clear('youth'); stage('youth'); return; }
+        if (S.vseq.join() === D.VERSE_ORDER.join()) { S.finalSec = S.startedAt ? Math.round((Date.now() - S.startedAt) / 1000) : null; S.vseq = []; save(); clear('youth'); stage('youth'); confetti(); return; }
         S.vseq = []; save(); youth(head); document.getElementById('msg').textContent = '순서가 달라요. 다시 해 봐요!'; return;
       }
       youth(head);
     });
     document.getElementById('reset').onclick = () => { S.vseq = []; save(); youth(head); };
+  }
+
+  // ---------- 컨페티 ----------
+  function confetti() {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cv = document.createElement('canvas'); cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99';
+    const W = cv.width = innerWidth, H = cv.height = innerHeight; document.body.appendChild(cv);
+    const cx = cv.getContext('2d'), cols = ['#3f6b4f', '#d98c3f', '#f2c94c', '#e07a8f', '#5aa9e6', '#9b7ede'];
+    const P = Array.from({ length: 160 }, (_, i) => ({ x: W / 2 + (Math.random() - .5) * 60, y: H * .55, vx: (Math.random() - .5) * 14, vy: -8 - Math.random() * 12, s: 6 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: cols[i % cols.length], d: Math.random() * 40 }));
+    let t0 = performance.now();
+    (function f(t) {
+      const el = t - t0; cx.clearRect(0, 0, W, H);
+      P.forEach(p => { p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.fillStyle = p.c; cx.globalAlpha = Math.max(0, 1 - el / 5000); cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); cx.restore(); });
+      if (el < 5000) requestAnimationFrame(f); else cv.remove();
+    })(t0);
   }
 
   // ---------- 라우터 ----------
