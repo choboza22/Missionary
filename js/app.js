@@ -47,8 +47,8 @@
   const nextStage = () => route().find(id => !S.done[id]);
   const visible = id => !!S.done[id] || id === nextStage();
   function roomOf(id) {
-    const r = C.rooms && C.rooms[id] && C.rooms[id][S.group];
-    return r || '방 번호는 스태프 안내를 따르세요';
+    const r = C.rooms && C.rooms[id];
+    return r ? r.replace(/^신학관\s*/, '') : '방 번호는 스태프 안내를 따르세요';
   }
   function placeLine(id) { const s = D.STAGES[id]; return s.place + (s.place === '신학관' ? ' · ' + roomOf(id) : ''); }
   function clear(id) {
