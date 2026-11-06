@@ -45,6 +45,7 @@
   // ---------- 길 안내 ----------
   const route = () => S.group ? [...D.THEO_ORDER[S.group], ...D.TAIL] : [];
   const nextStage = () => route().find(id => !S.done[id]);
+  const visible = id => !!S.done[id] || id === nextStage();
   function roomOf(id) {
     const r = C.rooms && C.rooms[id] && C.rooms[id][S.group];
     return r || '방 번호는 스태프 안내를 따르세요';
@@ -108,6 +109,7 @@
     const doneN = r.filter(id => S.done[id]).length;
     const steps = r.map((id, i) => {
       const st = D.STAGES[id], d = !!S.done[id], cur = id === nxt;
+      if (!visible(id)) return `<div class="step locked"><span class="dot">🔒</span><span class="txt"><b>???</b><small>앞 미션을 클리어하면 공개돼요</small></span></div>`;
       const t = D.TARGETS[id] ? `<span class="t">목표 ${D.TARGETS[id]}</span>` : '';
       return `<a class="step ${d ? 'done' : ''} ${cur ? 'cur' : ''}" href="#/stage/${id}"><span class="dot">${d ? '✓' : i + 1}</span><span class="txt"><b>${st.icon} ${st.name}</b><small>${esc(placeLine(id))}</small></span>${t}</a>`;
     }).join('');
@@ -124,6 +126,7 @@
     const r = route(), nxt = nextStage();
     const nodes = r.map(id => {
       const st = D.STAGES[id];
+      if (!visible(id)) return `<div class="node locked"><span>🔒</span><b>???</b><small>다음 장소는 비밀</small></div>`;
       return `<div class="node ${S.done[id] ? 'done' : ''} ${id === nxt ? 'cur' : ''}"><span>${st.icon}</span><b>${st.name}</b><small>${esc(st.place)}</small></div>`;
     }).join('<div class="arrow">↓</div>');
     shell(`<h2>지도</h2><img id="mapimg" class="mapimg" alt="캠퍼스 지도" src="${esc(C.mapImage)}" onerror="this.remove()">
@@ -145,6 +148,8 @@
   function qr(code) {
     if (!S.group) { sessionStorage.setItem('rest.pendingQr', code); return join(); }
     const w = D.WORDS[code], s = D.STORY[code];
+    const need = w ? 'hundred' : s ? 'main' : null;
+    if (need && !visible(need)) return shell(`<div class="qrcard"><div class="word">🔒</div><p class="story">아직 이 장소 차례가 아니에요.<br>앞 미션을 먼저 클리어해 주세요.</p></div><a class="btn" href="#/road">로드맵으로</a>`);
     if (w) {
       const isNew = !S.words.includes(code); if (isNew) { S.words.push(code); save(); }
       shell(`<div class="qrcard"><small>${isNew ? '새 단어를 찾았어요' : '이미 찾은 단어예요'}</small><div class="word">${w.t}</div>
@@ -159,7 +164,7 @@
   // ---------- 스테이지 ----------
   function stage(id) {
     if (!S.group) return join();
-    const st = D.STAGES[id]; if (!st) return road();
+    const st = D.STAGES[id]; if (!st || !visible(id)) { location.hash = '#/road'; return road(); }
     const head = `<div class="shead"><span class="ico">${st.icon}</span><div><small>${esc(placeLine(id))}</small><h2>${st.name}</h2></div></div><p class="brief">${st.brief}</p>`;
     if (S.done[id] && id !== 'youth') return shell(head + clearedBanner(id) + nextBtn(), { back: '#/road' });
     ({ silence, secret, quiz, hundred, oyat, main: mainStage, youth }[id])(head);
