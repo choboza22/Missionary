@@ -24,13 +24,14 @@
     try {
       let a = outbox();
       for (const it of a.slice()) {
+        let j;
         try {
           const r = await fetch(C.endpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(it) });
-          const j = await r.json();
-          if (!j.ok && /unknown type/.test(String(j.error))) serverOld = true;
-          else if (!j.ok) throw new Error(j.error || 'fail');
-          a = outbox().filter(x => x.id !== it.id); setOutbox(a);
-        } catch (e) { break; }
+          j = await r.json();
+        } catch (e) { break; } // 네트워크 문제: 나중에 다시
+        if (!j.ok && /unknown type/.test(String(j.error))) serverOld = true;
+        else if (!j.ok) continue; // 서버가 거부한 항목: 건너뛰고 다음 것 먼저 (나중에 재시도)
+        a = outbox().filter(x => x.id !== it.id); setOutbox(a);
       }
     } finally { flushing = false; paintSync(); }
   }
@@ -72,6 +73,7 @@
   }
   function currentRoute() { return (location.hash || '#/').split('/')[1] + '/' + (location.hash.split('/')[2] || ''); }
   setInterval(async () => {
+    if (document.hidden) return;
     const r = currentRoute();
     if (!/^(stage\/(hundred|main)|qr\/|camera\/)/.test(r)) return;
     if (await pullFound() && /^stage\/(hundred|main)/.test(r)) router();
@@ -91,10 +93,9 @@
     delete S.done[id];
     if (id === 'silence') S.silence = {};
     if (id === 'quiz') S.quizPass = [];
-    if (id === 'secret') 
     if (id === 'hundred') { S.seq = []; S.photoStep = false; }
     if (id === 'main') S.order = [];
-    if (id === 'youth') { S.vseq = []; S.finalSec = null; }
+    if (id === 'youth') { S.vseq = []; S.finalSec = null; S.vpool = null; }
     save();
   }
   function lastDone() { const e = Object.entries(S.done).sort((a, b) => b[1] - a[1])[0]; return e && e[0]; }
@@ -165,7 +166,8 @@
     shell(`<h2>${S.group}조 로드맵 <span class="count">${doneN}/${r.length}</span></h2>${members}${start}
       ${nxt ? `<a class="next" href="#/stage/${nxt}"><small>다음 목적지</small><b>${D.STAGES[nxt].icon} ${esc(D.STAGES[nxt].place)}</b><span>${D.STAGES[nxt].name}</span></a>` : `<div class="next ok"><b>모든 미션 완료!</b><span>청년관에서 말씀을 완성해 주세요</span></div>`}
       <div class="steps">${steps}</div>
-      <div class="links"><a href="#/map">🗺 지도</a><a href="#/verse">📜 말씀 조각 ${Object.keys(S.done).filter(k => D.FRAG[k]).length}/6</a><a href="#/scan">⌨ QR 코드 입력</a></div>
+      <div class="links"><a href="#/map">🗺 지도</a><a href="#/verse">📜 말씀 조각 ${Object.keys(S.done).filter(k => D.FRAG[k]).length}/6</a><a href="#/camera/${nxt === 'main' ? 'main' : 'hundred'}">📷 QR 찍기</a></div>
+      <div class="links"><a href="#/prayer">🙏 내 기도 쓰기 (각자)</a><a href="#/scan">⌨ QR 코드 입력</a></div>
       <div class="links sm"><button id="undo" ${lastDone() ? '' : 'disabled'}>↩ 방금 클리어 취소</button><button id="rst">⟲ 처음부터 다시</button><a href="#/join">👥 조 바꾸기</a></div>`);
     const u = document.getElementById('undo'); if (u) u.onclick = () => { const id = lastDone(); if (id && confirm(`"${D.STAGES[id].name}" 클리어를 취소하고 다시 할까요?`)) { resetStage(id); road(); } };
     const rs = document.getElementById('rst'); if (rs) rs.onclick = () => { if (confirm('모든 진행을 지우고 처음부터 다시 할까요? (조·이름은 유지됩니다)') && confirm('정말 초기화할까요?')) { const k = blank(); S = Object.assign(k, { group: S.group, name: S.name, leader: S.leader, members: S.members }); save(); road(); } };
@@ -190,7 +192,7 @@
   }
 
   function scan() {
-    shell(`<h2>QR 코드 직접 입력</h2><p class="hint">QR이 안 읽힐 때 QR 아래 적힌 코드(예: w1, s3)를 넣어 주세요.</p><input id="code" placeholder="코드" autocomplete="off" autocapitalize="off"><button class="btn" id="ok">확인</button>`, { back: '#/road' });
+    shell(`<h2>QR 코드 직접 입력</h2><p class="hint">QR이 안 읽힐 때 QR 아래 적힌 코드(예: h3, q1)를 넣어 주세요.</p><input id="code" placeholder="코드" autocomplete="off" autocapitalize="off"><button class="btn" id="ok">확인</button>`, { back: '#/road' });
     document.getElementById('ok').onclick = () => { const v = document.getElementById('code').value.trim().toLowerCase(); if (v) location.hash = '#/qr/' + v; };
   }
 
@@ -203,9 +205,10 @@
   function codeFrom(text) { const m = String(text).match(/#\/qr\/([A-Za-z0-9_-]+)/); return m ? m[1].toLowerCase() : null; }
   async function camera(back) {
     const bk = back === 'main' ? 'main' : 'hundred';
+    const backHref = visible(bk) ? '#/stage/' + bk : '#/road';
     shell(`<h2>QR 찍기</h2><div class="cam"><video id="v" playsinline muted></video></div><div class="msg" id="msg"></div>
       <p class="hint">QR이 화면 가운데 들어오게 비춰 주세요. 찍으면 우리 조 모두에게 공유돼요.</p>
-      <a class="btn ghost" href="#/scan">코드 직접 입력</a><a class="btn ghost" href="#/stage/${bk}">← 미션으로</a>`, { back: '#/stage/' + bk });
+      <a class="btn ghost" href="#/scan">코드 직접 입력</a><a class="btn ghost" href="${backHref}">← 돌아가기</a>`, { back: '#/road' });
     const msg = document.getElementById('msg'), v = document.getElementById('v');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = '이 브라우저는 카메라를 쓸 수 없어요. 폰 기본 카메라로 QR을 찍어 주세요.'; return; }
     let stream, alive = true;
@@ -317,7 +320,7 @@
         <button class="btn" id="chk" ${seq.length < 2 ? 'disabled' : ''}>순서 확인</button><div class="msg" id="msg"></div>`;
     } else {
       body = `<div class="ok-box">말씀 완성! “항상 기뻐하라 쉬지 말고 기도하라”</div><h3>3. 다 같이 기도하는 사진</h3><p class="hint">조원이 모두 나오게, 손 모으고 한 장! 올리면 클리어예요. 업로드가 안 되면 화면을 스태프에게 보여 주세요.</p>
-        <label class="btn alt filebtn">📷 사진 찍기/선택<input type="file" id="ph" accept="image/*" capture="environment" hidden></label><img id="prev" class="prev" hidden><div class="msg" id="msg"></div>`;
+        <label class="btn alt filebtn">📷 사진 찍기/선택<input type="file" id="ph" accept="image/*" hidden></label><img id="prev" class="prev" hidden><div class="msg" id="msg"></div>`;
     }
     shell(head + `<a class="btn alt" href="#/camera/hundred">📷 QR 찍기</a><p class="hint">조원이 찍은 단어도 자동으로 모여요 (약 5초)</p><p class="hint" id="syncline">${syncText()}</p>` + body, { back: '#/road' });
     document.querySelectorAll('.chip.word').forEach(b => b.onclick = () => { S.seq.push(b.dataset.c); save(); hundred(head); });
@@ -361,6 +364,21 @@
     };
   }
 
+  // 조원 각자 기도문 (미션 진행과 상관없이 어느 폰에서나)
+  function prayer() {
+    if (!S.group) return join();
+    shell(`<h2>🙏 오늘의 한 줄 기도</h2><p class="hint">조원 모두 각자 폰으로 적어요. 오늘은 공개하지 않고 저장만 합니다.</p>
+      <label>나를 위한 한 줄 기도</label><textarea id="p1" rows="2" maxlength="200" placeholder="예: 주님, 오늘 제 마음에 쉼을 주세요"></textarea>
+      <label>옆 사람을 위한 한 줄 기도 (선택)</label><textarea id="p2" rows="2" maxlength="200" placeholder="예: 옆에 있는 친구에게도 평안을 주세요"></textarea>
+      <button class="btn" id="sub">기도 보내기</button><div class="msg" id="msg"></div>`, { back: '#/road' });
+    document.getElementById('sub').onclick = () => {
+      const p1 = document.getElementById('p1').value.trim(), p2 = document.getElementById('p2').value.trim();
+      if (!p1) return (document.getElementById('msg').textContent = '나를 위한 기도를 한 줄 적어 주세요.');
+      send('prayer', { name: S.name, mine: p1, neighbor: p2 });
+      shell(`<div class="clear"><div class="big">보냈어요 🙏</div><div>오늘의 기도가 저장됐어요</div></div><a class="btn" href="#/road">로드맵으로</a>`);
+    };
+  }
+
   function mainStage(head) {
     const cards = S.cards.slice();
     let order = S.order.filter(c => cards.includes(c));
@@ -392,7 +410,8 @@
       shell(head + `<div class="clear"><div class="big">🎉 완성!</div><div class="frag">“나는 마음이 온유하고 겸손하니 나의 멍에를 메고 내게 배우라 그리하면 너희 마음이 쉼을 얻으리니”</div><div>${esc(C.verseRef)}</div>${mm ? `<div>걸린 시간 ${mm}</div>` : ''}</div><p class="hint">이 화면을 스태프에게 보여 주세요. 차를 드시며 쉬세요 ☕</p><button class="btn alt" id="cf">🎉 다시 축하하기</button>`, { back: '#/road' });
       document.getElementById('cf').onclick = confetti; return;
     }
-    const pool = [...D.VERSE_ORDER].sort(() => Math.random() - .5);
+    if (!S.vpool || S.vpool.length !== 6) { S.vpool = [...D.VERSE_ORDER].sort(() => Math.random() - .5); save(); }
+    const pool = S.vpool;
     const seq = S.vseq || [];
     shell(head + `<h3>말씀 조각을 순서대로 눌러요</h3><div class="chips">${pool.map(k => `<button class="chip word ${seq.includes(k) ? 'used' : ''}" data-k="${k}" ${seq.includes(k) ? 'disabled' : ''}>${D.FRAG[k]}</button>`).join('')}</div>
       <div class="verse-box">${seq.map(k => D.FRAG[k]).join(' ') || '…'}</div><button class="btn ghost" id="reset">처음부터</button><div class="msg" id="msg"></div>`, { back: '#/road' });
@@ -435,6 +454,7 @@
       else if (p === 'stage') stage(a);
       else if (p === 'qr') qr(a);
       else if (p === 'camera') camera(a);
+      else if (p === 'prayer') prayer();
       else landing();
     } catch (e) { console.error(e); shell(`<p>문제가 생겼어요.</p><a class="btn" href="#/road">로드맵으로</a>`); }
   }
