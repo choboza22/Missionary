@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>스태프 현황판</title>
+<style>body{font-family:-apple-system,"Malgun Gothic",sans-serif;margin:16px;background:#f6f3ea;color:#2b3a30}table{border-collapse:collapse;width:100%;background:#fff}th,td{border:1px solid #dcd6c6;padding:8px;text-align:left;font-size:15px}th{background:#e3eee6}.f{color:#3f6b4f;font-weight:700}small{color:#6b7a6f}</style></head>
+<body><h2>스태프 현황판</h2><p><small id="st">불러오는 중…</small></p>
+<table><thead><tr><th>조</th><th>완료</th><th>최근 단계</th><th>경과</th></tr></thead><tbody id="tb"></tbody></table>
+<script src="js/config.js"></script>
+<script>
+const TOTAL=7;
+async function pull(){
+  const st=document.getElementById('st');
+  if(!CONFIG.endpoint){st.textContent='endpoint가 설정되지 않았어요 (js/config.js)';return;}
+  try{
+    const j=await (await fetch(CONFIG.endpoint+'?action=progress')).json();
+    const rows=[1,2,3,4,5,6].map(g=>{const o=j.groups[g]||{done:[]};const done=o.done.length;
+      const el=o.elapsed!=null&&o.elapsed!==''?Math.floor(o.elapsed/60)+'분':'-';
+      return `<tr><td>${g}조</td><td class="${done>=TOTAL?'f':''}">${done}/${TOTAL}${done>=TOTAL?' 🏁':''}</td><td>${o.last||'-'}</td><td>${el}</td></tr>`}).join('');
+    document.getElementById('tb').innerHTML=rows;st.textContent='갱신 '+new Date().toLocaleTimeString();
+  }catch(e){st.textContent='불러오지 못했어요: '+e;}
+}
+pull();setInterval(pull,10000);
+</script></body></html>
