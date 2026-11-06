@@ -196,9 +196,17 @@
   }
 
   function secret(head) {
-    shell(head + `<ul class="rules"><li>미션지는 방에 있어요 (6장, 한 명이 뽑아요)</li><li>미션지를 모르는 사람은 한 명, 나머지는 박수·소리 크기로만 힌트</li><li>미션이 끝나면 아래 버튼을 눌러요</li></ul>${timer(9)}
-      <button class="btn" id="fin">미션 성공!</button>`, { back: '#/road' });
-    bindTimer(); document.getElementById('fin').onclick = () => { clear('secret'); stage('secret'); };
+    const card = S.secretCard;
+    const body = card == null
+      ? `<ol class="rules"><li>조원 중 <b>한 명</b>을 정해요. 그 사람은 <b>뒤돌아서거나 눈을 감고</b> 화면을 보지 않아요.</li><li>나머지 조원이 미션지를 확인한 뒤, 그 사람을 불러요.</li><li>말·몸짓 힌트 금지! <b>박수 소리 크기</b>로만 이끌어요. (가까우면 크게, 멀면 작게)</li></ol>
+         <button class="btn" id="draw">미션지 뽑기 (조원만 보세요)</button>`
+      : `<div class="qrcard"><small>미션지 · 미션을 모르는 사람은 보지 마세요</small><p class="story">${esc(D.SECRET[card].t)}</p><p class="hint">힌트: ${esc(D.SECRET[card].tip)}</p></div>
+         ${timer(9)}<button class="btn" id="fin">미션 성공!</button><button class="btn ghost" id="redraw">다른 미션지로 바꾸기</button>`;
+    shell(head + body, { back: '#/road' });
+    const draw = () => { let n; do { n = Math.floor(Math.random() * D.SECRET.length); } while (D.SECRET.length > 1 && n === S.secretCard); S.secretCard = n; save(); secret(head); };
+    const d = document.getElementById('draw'); if (d) d.onclick = draw;
+    const r = document.getElementById('redraw'); if (r) r.onclick = draw;
+    const f = document.getElementById('fin'); if (f) { bindTimer(); f.onclick = () => { clear('secret'); stage('secret'); }; }
   }
 
   function quiz(head) {

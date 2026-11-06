@@ -89,5 +89,15 @@ window.DATA = (function () {
     q4: { n: 6, mark: '✚', t: '모두 배불리 먹었고, 남은 조각을 거두니 열두 바구니에 가득 찼습니다. 먹은 사람은 오천 명이었습니다.' },
   };
 
-  return { FRAG, VERSE_ORDER, STAGES, TARGETS, THEO_ORDER, TAIL, KEYWORDS, QUIZ, WORDS, WORD_ANSWER, STORY };
+  // 나만 모르는 미션 — 미션지 6장 (미션을 모르는 한 명이 해낼 행동, 나머지는 박수·소리 크기로만 유도)
+  const SECRET = [
+    { t: '창가(또는 벽)까지 걸어가서 손바닥으로 한 번 짚고, 자리로 돌아와 앉기', tip: '가까워지면 박수를 크게, 멀어지면 작게' },
+    { t: '방 한가운데서 제자리로 한 바퀴 돌고 두 팔을 번쩍 들며 "쉼!" 하고 외치기', tip: '한가운데로 오면 박수를 크게' },
+    { t: '문 앞까지 가서 문을 손으로 만지고, 돌아와 조원 한 명과 하이파이브 하기', tip: '문에 가까워질수록 박수를 크게' },
+    { t: '의자 하나를 들어 방 반대편에 있는 조원 앞에 놓고, 그 의자에 앉기', tip: '의자와 목적지를 박수로 차례로 알려 주세요' },
+    { t: '방 구석까지 가서 양팔을 위로 쭉 뻗어 기지개를 켜고 "아~ 시원하다" 하기', tip: '구석에 닿으면 박수를 다같이 크게' },
+    { t: '조원 중 키가 가장 큰 사람에게 가서 어깨를 두 번 토닥이고 "수고했어요" 하기', tip: '그 사람이 박수 신호를 보내도 좋아요' },
+  ];
+
+  return { SECRET, FRAG, VERSE_ORDER, STAGES, TARGETS, THEO_ORDER, TAIL, KEYWORDS, QUIZ, WORDS, WORD_ANSWER, STORY };
 })();
