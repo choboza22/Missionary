@@ -28,7 +28,7 @@ def page(inner): return f'<div class="pg">{inner}</div>'
 P = []
 P.append(page(f'<div class="big" style="text-align:center"><h1>🌿 쉼을 찾아서</h1><div class="sub">QR을 스캔해 시작하세요 · 조원과 함께</div>{svg(base)}<p class="code" style="margin-top:6mm">{base}</p></div>'))
 P.append(page('<h2>신학관 방 안내 (문 앞에 부착)</h2><div class="sub">조 순서에 맞춰 각 방으로 안내합니다</div>' + ''.join(
-    f'<div class="room"><b>{rooms.get(k, "")}</b><span>{n}</span></div>' for k, n in [('silence','침묵 정렬'),('quiz','말씀 퀴즈'),('secret','나만 모르는 미션')])))
+    f'<div class="room"><b>{rooms.get(k, "")}</b><span>{n}</span></div>' for k, n in [('quiz','말씀 퀴즈'),('secret','나만 모르는 미션'),('silence','침묵 정렬')])))
 P.append(page('<h2>100주년기념관 — QR 8개</h2><div class="sub">곳곳에 흩어 숨겨 붙여 주세요. 코드는 스캔이 안 될 때 직접 입력용입니다.</div><div class="g g3">' + ''.join(
     f'<div class="c"><div class="k">100주년 QR</div>{qr(c)}<div class="code">{c}</div></div>' for c, _, _ in words) + '</div>'))
 P.append(page('<h2>삼육대학교회 본당 — 이야기 카드 QR 6개</h2><div class="sub">본당 곳곳에 붙여 주세요. 코드는 스캔이 안 될 때 직접 입력용입니다.</div><div class="g g3">' + ''.join(

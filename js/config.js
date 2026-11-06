@@ -9,5 +9,5 @@ window.CONFIG = {
   mapImage: 'assets/map.png',
   groups: 6,
   // 신학관 방 (미션별)
-  rooms: { silence: '신학관 201호', quiz: '신학관 202호', secret: '신학관 203호' },
+  rooms: { quiz: '신학관 201호', secret: '신학관 202호', silence: '신학관 203호' },
 };
