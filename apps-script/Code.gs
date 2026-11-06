@@ -27,6 +27,8 @@ function doPost(e) {
       const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/jpeg', d.group + '조_' + t.replace(/[:.]/g, '-') + '.jpg');
       const f = folder.createFile(blob);
       sheet_('사진', ['시각', '조', '이름', '파일', 'id']).appendRow([t, d.group, d.name, f.getUrl(), d.id]);
+    } else if (d.type === 'found') {
+      sheet_('발견', ['시각', '조', '코드', '이름', 'id']).appendRow([t, d.group, d.code, d.name || '', d.id]);
     } else if (d.type === 'progress' || d.type === 'join' || d.type === 'start') {
       sheet_('진행', ['시각', '조', '종류', '단계', '경과(초)', '이름', 'id']).appendRow([t, d.group, d.type, d.stageName || '', d.elapsedSec == null ? '' : d.elapsedSec, d.name || '', d.id]);
     } else throw new Error('unknown type');
@@ -38,6 +40,12 @@ function doPost(e) {
 
 // 스태프 현황판용: ?action=progress
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'found') {
+    const sh0 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('발견');
+    const g0 = String(e.parameter.group || ''); const seen = {};
+    if (sh0) sh0.getDataRange().getValues().slice(1).forEach(r => { if (String(r[1]) === g0 && r[2]) seen[r[2]] = 1; });
+    return json_({ ok: true, found: Object.keys(seen) });
+  }
   const out = {};
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('진행');
   if (sh) {

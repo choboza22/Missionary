@@ -27,7 +27,7 @@
         try {
           const r = await fetch(C.endpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(it) });
           const j = await r.json();
-          if (!j.ok) throw new Error(j.error || 'fail');
+          if (!j.ok && !/unknown type/.test(String(j.error))) throw new Error(j.error || 'fail');
           a = outbox().filter(x => x.id !== it.id); setOutbox(a);
         } catch (e) { break; }
       }
@@ -41,6 +41,31 @@
   }
   window.addEventListener('online', flush);
   setInterval(flush, 15000);
+
+  // ---------- 조 공유 (QR로 찾은 단어·카드) ----------
+  let syncing = false;
+  async function pullFound() {
+    if (!C.endpoint || !S.group || syncing) return false;
+    syncing = true; let changed = false;
+    try {
+      const r = await fetch(C.endpoint + '?action=found&group=' + S.group);
+      const j = await r.json();
+      if (j && j.ok && Array.isArray(j.found)) {
+        j.found.forEach(c => {
+          if (D.WORDS[c] && !S.words.includes(c)) { S.words.push(c); changed = true; }
+          if (D.STORY[c] && !S.cards.includes(c)) { S.cards.push(c); changed = true; }
+        });
+        if (changed) save();
+      }
+    } catch (e) {} finally { syncing = false; }
+    return changed;
+  }
+  function currentRoute() { return (location.hash || '#/').split('/')[1] + '/' + (location.hash.split('/')[2] || ''); }
+  setInterval(async () => {
+    const r = currentRoute();
+    if (!/^(stage\/(hundred|main)|qr\/|camera\/)/.test(r)) return;
+    if (await pullFound() && /^stage\/(hundred|main)/.test(r)) router();
+  }, 8000);
 
   // ---------- 길 안내 ----------
   const route = () => S.group ? [...D.THEO_ORDER[S.group], ...D.TAIL] : [];
@@ -159,20 +184,59 @@
     document.getElementById('ok').onclick = () => { const v = document.getElementById('code').value.trim().toLowerCase(); if (v) location.hash = '#/qr/' + v; };
   }
 
+  // 카메라 QR 스캐너
+  let camStop = null;
+  function stopCam() { if (camStop) { camStop(); camStop = null; } }
+  function loadJsQR() {
+    return window.jsQR ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'js/jsQR.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  }
+  function codeFrom(text) { const m = String(text).match(/#\/qr\/([A-Za-z0-9_-]+)/); return m ? m[1].toLowerCase() : null; }
+  async function camera(back) {
+    const bk = back === 'main' ? 'main' : 'hundred';
+    shell(`<h2>QR 찍기</h2><div class="cam"><video id="v" playsinline muted></video></div><div class="msg" id="msg"></div>
+      <p class="hint">QR이 화면 가운데 들어오게 비춰 주세요. 찍으면 우리 조 모두에게 공유돼요.</p>
+      <a class="btn ghost" href="#/scan">코드 직접 입력</a><a class="btn ghost" href="#/stage/${bk}">← 미션으로</a>`, { back: '#/stage/' + bk });
+    const msg = document.getElementById('msg'), v = document.getElementById('v');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = '이 브라우저는 카메라를 쓸 수 없어요. 폰 기본 카메라로 QR을 찍어 주세요.'; return; }
+    let stream, alive = true;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); }
+    catch (e) { msg.textContent = '카메라 권한을 허용해 주세요. 안 되면 폰 기본 카메라로 QR을 찍어도 돼요.'; return; }
+    camStop = () => { alive = false; stream.getTracks().forEach(t => t.stop()); };
+    v.srcObject = stream; await v.play().catch(() => {});
+    const det = window.BarcodeDetector ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+    if (!det) { try { await loadJsQR(); } catch (e) { msg.textContent = '스캐너를 불러오지 못했어요.'; return; } }
+    const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+    const tick = async () => {
+      if (!alive) return;
+      if (v.videoWidth) {
+        let text = null;
+        try {
+          if (det) { const r = await det.detect(v); if (r[0]) text = r[0].rawValue; }
+          else { cv.width = v.videoWidth; cv.height = v.videoHeight; cx.drawImage(v, 0, 0); const r = jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height); if (r) text = r.data; }
+        } catch (e) {}
+        const c = text && codeFrom(text);
+        if (c) { stopCam(); location.hash = '#/qr/' + c; return; }
+        if (text) msg.textContent = '이 앱의 QR이 아니에요.';
+      }
+      setTimeout(tick, 250);
+    };
+    tick();
+  }
+
   // QR 스캔 착지
   function qr(code) {
     if (!S.group) { sessionStorage.setItem('rest.pendingQr', code); return join(); }
     const w = D.WORDS[code], s = D.STORY[code];
-    const need = w ? 'hundred' : s ? 'main' : null;
-    if (need && !visible(need)) return shell(`<div class="qrcard"><div class="word">🔒</div><p class="story">아직 이 장소 차례가 아니에요.<br>앞 미션을 먼저 클리어해 주세요.</p></div><a class="btn" href="#/road">로드맵으로</a>`);
     if (w) {
       const isNew = !S.words.includes(code); if (isNew) { S.words.push(code); save(); }
+      send('found', { code, name: S.name });
       shell(`<div class="qrcard"><small>${isNew ? '새 단어를 찾았어요' : '이미 찾은 단어예요'}</small><div class="word">${w.t}</div>
         <p class="hint">이 단어가 말씀에 들어갈지는 조원들이 함께 정해 보세요. 진짜일 수도, 함정일 수도 있어요.</p></div>
-        <a class="btn" href="#/stage/hundred">100주년 미션으로</a>`);
+        <p class="hint">✓ 우리 조 모두에게 공유돼요 (약 10초)</p><a class="btn" href="#/camera/hundred">📷 다음 QR 찍기</a><a class="btn ghost" href="#/stage/hundred">100주년 미션으로</a>`);
     } else if (s) {
       const isNew = !S.cards.includes(code); if (isNew) { S.cards.push(code); save(); }
-      shell(`<div class="qrcard"><small>이야기 카드 ${s.mark}</small><p class="story">${s.t}</p><p class="hint">성경에 나온 순서는 몇 번째일까요?</p></div><a class="btn" href="#/stage/main">본당 미션으로</a>`);
+      send('found', { code, name: S.name });
+      shell(`<div class="qrcard"><small>이야기 카드 ${s.mark}</small><p class="story">${s.t}</p><p class="hint">성경에 나온 순서는 몇 번째일까요?</p></div><p class="hint">✓ 우리 조 모두에게 공유돼요 (약 10초)</p><a class="btn" href="#/camera/main">📷 다음 QR 찍기</a><a class="btn ghost" href="#/stage/main">본당 미션으로</a>`);
     } else shell(`<p>알 수 없는 코드예요: ${esc(code)}</p><a class="btn" href="#/road">로드맵으로</a>`);
   }
 
@@ -252,7 +316,7 @@
       body = `<div class="ok-box">말씀 완성! “항상 기뻐하라 쉬지 말고 기도하라”</div><h3>3. 다 같이 기도하는 사진</h3><p class="hint">조원이 모두 나오게, 손 모으고 한 장! 올리면 클리어예요. 업로드가 안 되면 화면을 스태프에게 보여 주세요.</p>
         <label class="btn alt filebtn">📷 사진 찍기/선택<input type="file" id="ph" accept="image/*" capture="environment" hidden></label><img id="prev" class="prev" hidden><div class="msg" id="msg"></div>`;
     }
-    shell(head + body, { back: '#/road' });
+    shell(head + `<a class="btn alt" href="#/camera/hundred">📷 QR 찍기</a><p class="hint">조원이 찍은 단어도 자동으로 모여요 (약 10초)</p>` + body, { back: '#/road' });
     document.querySelectorAll('.chip.word').forEach(b => b.onclick = () => { S.seq.push(b.dataset.c); save(); hundred(head); });
     document.querySelectorAll('.chip.pick').forEach(b => b.onclick = () => { S.seq = S.seq.filter(x => x !== b.dataset.r); save(); hundred(head); });
     const chk = document.getElementById('chk');
@@ -300,7 +364,7 @@
     const pool = cards.filter(c => !order.includes(c));
     const poolH = pool.map(c => `<button class="story-chip" data-a="${c}"><span class="mk">${D.STORY[c].mark}</span>${D.STORY[c].t}</button>`).join('') || '<span class="hint">QR을 스캔해 카드를 모아 보세요 (6장).</span>';
     const ordH = order.map((c, i) => `<div class="ord"><span class="n">${i + 1}</span><span class="mk">${D.STORY[c].mark}</span><span class="tx">${D.STORY[c].t}</span><span class="mv"><button data-u="${i}">▲</button><button data-d="${i}">▼</button><button data-x="${c}">✕</button></span></div>`).join('') || '<span class="hint">카드를 눌러 순서대로 놓아요</span>';
-    shell(head + `<h3>찾은 카드 (${cards.length}/6)</h3><div class="pool">${poolH}</div><h3>내가 놓은 순서</h3><div class="ordl">${ordH}</div>
+    shell(head + `<a class="btn alt" href="#/camera/main">📷 QR 찍기</a><p class="hint">조원이 찍은 카드도 자동으로 모여요 (약 10초)</p><h3>찾은 카드 (${cards.length}/6)</h3><div class="pool">${poolH}</div><h3>내가 놓은 순서</h3><div class="ordl">${ordH}</div>
       <button class="btn" id="chk" ${order.length < 6 ? 'disabled' : ''}>순서 확인</button><div class="msg" id="msg"></div>`, { back: '#/road' });
     document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { S.order = [...order, b.dataset.a]; save(); mainStage(head); });
     document.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { S.order = order.filter(c => c !== b.dataset.x); save(); mainStage(head); });
@@ -341,6 +405,7 @@
 
   // ---------- 라우터 ----------
   function router() {
+    stopCam();
     const [, p, a] = (location.hash || '#/').split('/');
     try {
       if (p === 'join') join();
@@ -350,6 +415,7 @@
       else if (p === 'scan') scan();
       else if (p === 'stage') stage(a);
       else if (p === 'qr') qr(a);
+      else if (p === 'camera') camera(a);
       else landing();
     } catch (e) { console.error(e); shell(`<p>문제가 생겼어요.</p><a class="btn" href="#/road">로드맵으로</a>`); }
   }
