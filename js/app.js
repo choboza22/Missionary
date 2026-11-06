@@ -27,7 +27,8 @@
         try {
           const r = await fetch(C.endpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(it) });
           const j = await r.json();
-          if (!j.ok && !/unknown type/.test(String(j.error))) throw new Error(j.error || 'fail');
+          if (!j.ok && /unknown type/.test(String(j.error))) serverOld = true;
+          else if (!j.ok) throw new Error(j.error || 'fail');
           a = outbox().filter(x => x.id !== it.id); setOutbox(a);
         } catch (e) { break; }
       }
@@ -37,27 +38,36 @@
   function paintSync() {
     const el = document.getElementById('sync'); if (!el) return;
     if (!C.endpoint) { el.textContent = '저장: 이 폰에만'; return; }
-    const n = pending(); el.textContent = n ? `전송 대기 ${n}건` : '전송 완료 ✓';
+    const n = pending(); el.textContent = serverOld ? '⚠ 서버 새 버전 배포 필요' : n ? `전송 대기 ${n}건` : '전송 완료 ✓';
   }
   window.addEventListener('online', flush);
   setInterval(flush, 15000);
 
   // ---------- 조 공유 (QR로 찾은 단어·카드) ----------
-  let syncing = false;
+  let syncing = false, syncState = '', serverOld = false;
+  function syncText() {
+    if (!C.endpoint) return '';
+    if (serverOld || syncState === 'old') return '⚠ 서버(Apps Script) 새 버전 배포가 필요해요';
+    if (syncState === 'ok') return '🔄 조 공유 연결됨';
+    if (syncState === 'err') return '⚠ 조 공유 연결 안 됨 (인터넷 확인)';
+    return '🔄 조 공유 확인 중…';
+  }
+  function paintSyncLine() { const el = document.getElementById('syncline'); if (el) el.textContent = syncText(); }
   async function pullFound() {
     if (!C.endpoint || !S.group || syncing) return false;
     syncing = true; let changed = false;
     try {
-      const r = await fetch(C.endpoint + '?action=found&group=' + S.group);
+      const r = await fetch(C.endpoint + '?action=found&group=' + S.group + '&_=' + Date.now(), { cache: 'no-store' });
       const j = await r.json();
-      if (j && j.ok && Array.isArray(j.found)) {
+      syncState = j && j.ok && Array.isArray(j.found) ? 'ok' : 'old';
+      if (syncState === 'ok') {
         j.found.forEach(c => {
           if (D.WORDS[c] && !S.words.includes(c)) { S.words.push(c); changed = true; }
           if (D.STORY[c] && !S.cards.includes(c)) { S.cards.push(c); changed = true; }
         });
         if (changed) save();
       }
-    } catch (e) {} finally { syncing = false; }
+    } catch (e) { syncState = 'err'; } finally { syncing = false; paintSyncLine(); }
     return changed;
   }
   function currentRoute() { return (location.hash || '#/').split('/')[1] + '/' + (location.hash.split('/')[2] || ''); }
@@ -65,7 +75,7 @@
     const r = currentRoute();
     if (!/^(stage\/(hundred|main)|qr\/|camera\/)/.test(r)) return;
     if (await pullFound() && /^stage\/(hundred|main)/.test(r)) router();
-  }, 8000);
+  }, 5000);
 
   // ---------- 길 안내 ----------
   const route = () => S.group ? [...D.THEO_ORDER[S.group], ...D.TAIL] : [];
@@ -232,11 +242,11 @@
       send('found', { code, name: S.name });
       shell(`<div class="qrcard"><small>${isNew ? '새 단어를 찾았어요' : '이미 찾은 단어예요'}</small><div class="word">${w.t}</div>
         <p class="hint">이 단어가 말씀에 들어갈지는 조원들이 함께 정해 보세요. 진짜일 수도, 함정일 수도 있어요.</p></div>
-        <p class="hint">✓ 우리 조 모두에게 공유돼요 (약 10초)</p><a class="btn" href="#/camera/hundred">📷 다음 QR 찍기</a><a class="btn ghost" href="#/stage/hundred">100주년 미션으로</a>`);
+        <p class="hint">✓ 우리 조 모두에게 공유돼요 (약 5초)</p><a class="btn" href="#/camera/hundred">📷 다음 QR 찍기</a><a class="btn ghost" href="#/stage/hundred">100주년 미션으로</a>`);
     } else if (s) {
       const isNew = !S.cards.includes(code); if (isNew) { S.cards.push(code); save(); }
       send('found', { code, name: S.name });
-      shell(`<div class="qrcard"><small>이야기 카드 ${s.mark}</small><p class="story">${s.t}</p><p class="hint">성경에 나온 순서는 몇 번째일까요?</p></div><p class="hint">✓ 우리 조 모두에게 공유돼요 (약 10초)</p><a class="btn" href="#/camera/main">📷 다음 QR 찍기</a><a class="btn ghost" href="#/stage/main">본당 미션으로</a>`);
+      shell(`<div class="qrcard"><small>이야기 카드 ${s.mark}</small><p class="story">${s.t}</p><p class="hint">성경에 나온 순서는 몇 번째일까요?</p></div><p class="hint">✓ 우리 조 모두에게 공유돼요 (약 5초)</p><a class="btn" href="#/camera/main">📷 다음 QR 찍기</a><a class="btn ghost" href="#/stage/main">본당 미션으로</a>`);
     } else shell(`<p>알 수 없는 코드예요: ${esc(code)}</p><a class="btn" href="#/road">로드맵으로</a>`);
   }
 
@@ -251,6 +261,7 @@
       return;
     }
     ({ silence, secret, quiz, hundred, oyat, main: mainStage, youth }[id])(head);
+    if (id === 'hundred' || id === 'main') pullFound().then(ch => { if (ch && location.hash === '#/stage/' + id) router(); });
   }
 
   function timer(min) {
@@ -308,7 +319,7 @@
       body = `<div class="ok-box">말씀 완성! “항상 기뻐하라 쉬지 말고 기도하라”</div><h3>3. 다 같이 기도하는 사진</h3><p class="hint">조원이 모두 나오게, 손 모으고 한 장! 올리면 클리어예요. 업로드가 안 되면 화면을 스태프에게 보여 주세요.</p>
         <label class="btn alt filebtn">📷 사진 찍기/선택<input type="file" id="ph" accept="image/*" capture="environment" hidden></label><img id="prev" class="prev" hidden><div class="msg" id="msg"></div>`;
     }
-    shell(head + `<a class="btn alt" href="#/camera/hundred">📷 QR 찍기</a><p class="hint">조원이 찍은 단어도 자동으로 모여요 (약 10초)</p>` + body, { back: '#/road' });
+    shell(head + `<a class="btn alt" href="#/camera/hundred">📷 QR 찍기</a><p class="hint">조원이 찍은 단어도 자동으로 모여요 (약 5초)</p><p class="hint" id="syncline">${syncText()}</p>` + body, { back: '#/road' });
     document.querySelectorAll('.chip.word').forEach(b => b.onclick = () => { S.seq.push(b.dataset.c); save(); hundred(head); });
     document.querySelectorAll('.chip.pick').forEach(b => b.onclick = () => { S.seq = S.seq.filter(x => x !== b.dataset.r); save(); hundred(head); });
     const chk = document.getElementById('chk');
@@ -356,7 +367,7 @@
     const pool = cards.filter(c => !order.includes(c));
     const poolH = pool.map(c => `<button class="story-chip" data-a="${c}"><span class="mk">${D.STORY[c].mark}</span>${D.STORY[c].t}</button>`).join('') || '<span class="hint">QR을 스캔해 카드를 모아 보세요 (6장).</span>';
     const ordH = order.map((c, i) => `<div class="ord"><span class="n">${i + 1}</span><span class="mk">${D.STORY[c].mark}</span><span class="tx">${D.STORY[c].t}</span><span class="mv"><button data-u="${i}">▲</button><button data-d="${i}">▼</button><button data-x="${c}">✕</button></span></div>`).join('') || '<span class="hint">카드를 눌러 순서대로 놓아요</span>';
-    shell(head + `<a class="btn alt" href="#/camera/main">📷 QR 찍기</a><p class="hint">조원이 찍은 카드도 자동으로 모여요 (약 10초)</p><h3>찾은 카드 (${cards.length}/6)</h3><div class="pool">${poolH}</div><h3>내가 놓은 순서</h3><div class="ordl">${ordH}</div>
+    shell(head + `<a class="btn alt" href="#/camera/main">📷 QR 찍기</a><p class="hint">조원이 찍은 카드도 자동으로 모여요 (약 5초)</p><p class="hint" id="syncline">${syncText()}</p><h3>찾은 카드 (${cards.length}/6)</h3><div class="pool">${poolH}</div><h3>내가 놓은 순서</h3><div class="ordl">${ordH}</div>
       <button class="btn" id="chk" ${order.length < 6 ? 'disabled' : ''}>순서 확인</button><div class="msg" id="msg"></div>`, { back: '#/road' });
     document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { S.order = [...order, b.dataset.a]; save(); mainStage(head); });
     document.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { S.order = order.filter(c => c !== b.dataset.x); save(); mainStage(head); });
