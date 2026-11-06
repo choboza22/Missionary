@@ -51,6 +51,18 @@
     return r ? r.replace(/^신학관\s*/, '') : '방 번호는 스태프 안내를 따르세요';
   }
   function placeLine(id) { const s = D.STAGES[id]; return s.place + (s.place === '신학관' ? ' · ' + roomOf(id) : ''); }
+  // 미션 되돌리기 (서버에는 이미 보낸 기록이 남을 수 있음)
+  function resetStage(id) {
+    delete S.done[id];
+    if (id === 'silence') S.silence = {};
+    if (id === 'quiz') S.quizPass = [];
+    if (id === 'secret') S.secretCard = null;
+    if (id === 'hundred') { S.seq = []; S.photoStep = false; }
+    if (id === 'main') S.order = [];
+    if (id === 'youth') { S.vseq = []; S.finalSec = null; }
+    save();
+  }
+  function lastDone() { const e = Object.entries(S.done).sort((a, b) => b[1] - a[1])[0]; return e && e[0]; }
   function clear(id) {
     if (S.done[id]) return;
     S.done[id] = Date.now(); save();
@@ -118,7 +130,10 @@
     shell(`<h2>${S.group}조 로드맵 <span class="count">${doneN}/${r.length}</span></h2>${members}${start}
       ${nxt ? `<a class="next" href="#/stage/${nxt}"><small>다음 목적지</small><b>${D.STAGES[nxt].icon} ${esc(D.STAGES[nxt].place)}</b><span>${D.STAGES[nxt].name}</span></a>` : `<div class="next ok"><b>모든 미션 완료!</b><span>청년관에서 말씀을 완성해 주세요</span></div>`}
       <div class="steps">${steps}</div>
-      <div class="links"><a href="#/map">🗺 지도</a><a href="#/verse">📜 말씀 조각 ${Object.keys(S.done).filter(k => D.FRAG[k]).length}/6</a><a href="#/scan">⌨ QR 코드 입력</a></div>`);
+      <div class="links"><a href="#/map">🗺 지도</a><a href="#/verse">📜 말씀 조각 ${Object.keys(S.done).filter(k => D.FRAG[k]).length}/6</a><a href="#/scan">⌨ QR 코드 입력</a></div>
+      <div class="links sm"><button id="undo" ${lastDone() ? '' : 'disabled'}>↩ 방금 클리어 취소</button><button id="rst">⟲ 처음부터 다시</button><a href="#/join">👥 조 바꾸기</a></div>`);
+    const u = document.getElementById('undo'); if (u) u.onclick = () => { const id = lastDone(); if (id && confirm(`"${D.STAGES[id].name}" 클리어를 취소하고 다시 할까요?`)) { resetStage(id); road(); } };
+    const rs = document.getElementById('rst'); if (rs) rs.onclick = () => { if (confirm('모든 진행을 지우고 처음부터 다시 할까요? (조·이름은 유지됩니다)') && confirm('정말 초기화할까요?')) { const k = blank(); S = Object.assign(k, { group: S.group, name: S.name, leader: S.leader, members: S.members }); save(); road(); } };
     const b = document.getElementById('start'); if (b) b.onclick = () => { S.startedAt = Date.now(); save(); send('start', {}); road(); };
   }
 
@@ -166,7 +181,11 @@
     if (!S.group) return join();
     const st = D.STAGES[id]; if (!st || !visible(id)) { location.hash = '#/road'; return road(); }
     const head = `<div class="shead"><span class="ico">${st.icon}</span><div><small>${esc(placeLine(id))}</small><h2>${st.name}</h2></div></div><p class="brief">${st.brief}</p>`;
-    if (S.done[id] && id !== 'youth') return shell(head + clearedBanner(id) + nextBtn(), { back: '#/road' });
+    if (S.done[id] && id !== 'youth') {
+      shell(head + clearedBanner(id) + nextBtn() + `<button class="btn ghost" id="redo">↩ 이 미션 다시 하기</button>`, { back: '#/road' });
+      document.getElementById('redo').onclick = () => { if (confirm('이 미션을 다시 할까요?')) { resetStage(id); stage(id); } };
+      return;
+    }
     ({ silence, secret, quiz, hundred, oyat, main: mainStage, youth }[id])(head);
   }
 
