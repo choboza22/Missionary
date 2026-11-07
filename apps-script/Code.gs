@@ -27,6 +27,10 @@ function doPost(e) {
       const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/jpeg', d.group + '조_' + t.replace(/[:.]/g, '-') + '.jpg');
       const f = folder.createFile(blob);
       sheet_('사진', ['시각', '조', '이름', '파일', 'id']).appendRow([t, d.group, d.name, f.getUrl(), d.id]);
+    } else if (d.type === 'gset') {
+      // 조 공유 상태(미션 진행·QR 발견·확인 버튼 등). 서버 시각으로 기록
+      sheet_('조상태', ['서버시각(ms)', '조', '키', '값(JSON)', '이름', 'id', '시각']).appendRow([Date.now(), d.group, d.key, JSON.stringify(d.value), d.name || '', d.id, t]);
+      CacheService.getScriptCache().remove('gs_' + d.group);
     } else if (d.type === 'found') {
       sheet_('발견', ['시각', '조', '코드', '이름', 'id']).appendRow([t, d.group, d.code, d.name || '', d.id]);
     } else if (d.type === 'progress' || d.type === 'join' || d.type === 'start') {
@@ -39,7 +43,30 @@ function doPost(e) {
 }
 
 // 스태프 현황판용: ?action=progress
+function parse_(x) { try { return JSON.parse(String(x)); } catch (err) { return x; } }
+
+// 조 상태: 마지막 'epoch'(처음부터 다시) 이후의 키별 최신 값
+function gstate_(g) {
+  const cache = CacheService.getScriptCache(), ck = 'gs_' + g, hit = cache.get(ck);
+  if (hit) return JSON.parse(hit);
+  const out = { ok: true, state: {} };
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('조상태');
+  if (sh) {
+    const rows = sh.getDataRange().getValues().slice(1).filter(r => String(r[1]) === g);
+    let epochT = 0;
+    rows.forEach(r => { if (r[2] === 'epoch' && Number(r[0]) > epochT) epochT = Number(r[0]); });
+    rows.forEach(r => {
+      const t = Number(r[0]); if (t < epochT) return;
+      const prev = out.state[r[2]];
+      if (!prev || t >= prev.t) out.state[r[2]] = { v: parse_(r[3]), t: t, by: r[4] };
+    });
+  }
+  cache.put(ck, JSON.stringify(out), 3);
+  return out;
+}
+
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'gstate') return json_(gstate_(String(e.parameter.group || '')));
   if (e && e.parameter && e.parameter.action === 'found') {
     const sh0 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('발견');
     const g0 = String(e.parameter.group || ''); const seen = {};

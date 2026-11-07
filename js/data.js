@@ -14,7 +14,7 @@ window.DATA = (function () {
   const STAGES = {
     silence: {
       id: 'silence', place: '신학관', name: '침묵 정렬', icon: '🤫', minutes: 9,
-      brief: '말·글·휴대폰·손가락 숫자 없이, 눈빛과 몸짓만으로 키워드 순서대로 한 줄로 서 보세요.',
+      brief: '말·글·휴대폰·손가락 숫자 없이, 눈빛과 몸짓만으로 키워드 순서대로 한 줄로 서 보세요. 2번 성공하면 클리어!',
     },
     secret: {
       id: 'secret', place: '신학관', name: '나만 모르는 미션', icon: '🙈', minutes: 9,
@@ -22,7 +22,7 @@ window.DATA = (function () {
     },
     quiz: {
       id: 'quiz', place: '신학관', name: '말씀 퀴즈', icon: '📖', minutes: 9,
-      brief: '마가복음 6:30~44 본문에서 나온 퀴즈 3문제입니다.',
+      brief: '201호 문 앞의 QR을 찍으면 퀴즈가 열려요. 마가복음 6:30~44 본문에서 나온 3문제입니다.',
     },
     hundred: {
       id: 'hundred', place: '100주년기념관', name: 'QR 말씀 찾기', icon: '🔍', minutes: 7,
@@ -30,7 +30,7 @@ window.DATA = (function () {
     },
     oyat: {
       id: 'oyat', place: '오얏봉', name: '오늘의 한 줄 기도', icon: '🙏', minutes: 7,
-      brief: '각자 휴대폰으로 오늘의 한 줄 기도를 적습니다. 근처 어디서든 괜찮아요. 오늘은 공개하지 않고 저장만 합니다.',
+      brief: '각자 휴대폰으로 오늘의 한 줄 기도를 적습니다. 근처 어디서든 괜찮아요. 기도문은 우리 조원에게만 보여요. 전체 공개는 하지 않습니다.',
     },
     main: {
       id: 'main', place: '삼육대학교회 본당', name: '이야기 카드 맞추기', icon: '🧩', minutes: 12,
@@ -89,5 +89,8 @@ window.DATA = (function () {
     q4: { n: 6, mark: '✚', t: '모두 배불리 먹었고, 남은 조각을 거두니 열두 바구니에 가득 찼습니다. 먹은 사람은 오천 명이었습니다.' },
   };
 
-  return { FRAG, VERSE_ORDER, STAGES, TARGETS, THEO_ORDER, TAIL, KEYWORDS, QUIZ, WORDS, WORD_ANSWER, STORY };
+  // 방 앞 QR: 찍어야 해당 미션이 열림
+  const ROOMQR = { r1: 'quiz' };
+
+  return { ROOMQR, FRAG, VERSE_ORDER, STAGES, TARGETS, THEO_ORDER, TAIL, KEYWORDS, QUIZ, WORDS, WORD_ANSWER, STORY };
 })();

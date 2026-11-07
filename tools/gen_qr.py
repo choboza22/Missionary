@@ -28,7 +28,7 @@ def page(inner): return f'<div class="pg">{inner}</div>'
 P = []
 P.append(page(f'<div class="big" style="text-align:center"><h1>🌿 쉼을 찾아서</h1><div class="sub">QR을 스캔해 시작하세요 · 조원과 함께</div>{svg(base)}<p class="code" style="margin-top:6mm">{base}</p></div>'))
 P.append(page('<h2>신학관 방 안내 (문 앞에 부착)</h2><div class="sub">조 순서에 맞춰 각 방으로 안내합니다</div>' + ''.join(
-    f'<div class="room"><b>{rooms.get(k, "")}</b><span>{n}</span></div>' for k, n in [('quiz','말씀 퀴즈'),('secret','나만 모르는 미션'),('silence','침묵 정렬')])))
+    f'<div class="room"><b>{rooms.get(k, "")}</b><span>{n}</span>' + (f'<div style="margin-top:6mm">{qr("r1")}<div class="code">r1 · 이 QR을 찍으면 퀴즈가 열려요</div></div>' if k == 'quiz' else '') + '</div>' for k, n in [('quiz','말씀 퀴즈'),('secret','나만 모르는 미션'),('silence','침묵 정렬')])))
 P.append(page('<h2>100주년기념관 — QR 8개</h2><div class="sub">곳곳에 흩어 숨겨 붙여 주세요. 코드는 스캔이 안 될 때 직접 입력용입니다.</div><div class="g g3">' + ''.join(
     f'<div class="c"><div class="k">100주년 QR</div>{qr(c)}<div class="code">{c}</div></div>' for c, _, _ in words) + '</div>'))
 P.append(page('<h2>삼육대학교회 본당 — 이야기 카드 QR 6개</h2><div class="sub">본당 곳곳에 붙여 주세요. 코드는 스캔이 안 될 때 직접 입력용입니다.</div><div class="g g3">' + ''.join(
@@ -36,6 +36,7 @@ P.append(page('<h2>삼육대학교회 본당 — 이야기 카드 QR 6개</h2><d
 open('print-qr.html', 'w', encoding='utf-8').write(f'<!doctype html><meta charset="utf-8"><title>QR 인쇄용</title><style>{CSS}</style>' + ''.join(P))
 
 S = ['<div class="ban">스태프 전용 — 참가자에게 보이지 않게 하세요</div><h2>QR 정답표</h2>',
+     '<h3>신학관 201호 문 앞 QR: r1 (찍으면 퀴즈 열림, 리더는 안 되면 "그냥 열기" 가능)</h3>',
      '<h3>100주년 (정답 순서: 항상 → 기뻐하라 → 쉬지 → 말고 → 기도하라)</h3><table><tr><th>코드</th><th>단어</th><th>구분</th></tr>' +
      ''.join(f'<tr><td>{c}</td><td>{t}</td><td>{"정답" if ok=="true" else "함정"}</td></tr>' for c, t, ok in words) + '</table>',
      '<h3>본당 이야기 카드 (막 6:30~44, 정답 순서 1→6)</h3><table><tr><th>코드</th><th>정답 순서</th><th>표시</th><th>내용</th></tr>' +

@@ -8,6 +8,8 @@ window.CONFIG = {
   // 선택: 지도 이미지를 assets/map.png 로 넣으면 지도 화면에 보입니다.
   mapImage: 'assets/map.png',
   groups: 6,
+  // 마스터(테스트) 모드 코드: 가입 화면의 🔑에서 입력. 모든 장소가 열리고 기록은 조 'T'로 따로 쌓여 현황판에 섞이지 않습니다.
+  masterCode: 'master1107',
   // 신학관 방 (미션별)
   rooms: { quiz: '신학관 201호', secret: '신학관 202호', silence: '신학관 203호' },
 };
