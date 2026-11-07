@@ -366,7 +366,7 @@
     if (k === undefined) {
       body += lead ? `<button class="btn" id="draw">🎲 키워드 뽑기</button>` : `<div class="ok-box">리더가 키워드를 뽑는 중이에요…</div>`;
     } else {
-      body += `<div class="kwbig">${esc(D.KEYWORDS[k])}</div>${timer(9, 'silence')}`;
+      body += `<div class="kwbig">${esc(D.KEYWORDS[k])}</div>`;
       body += gateHTML(`sil${round}.${k}.g${g}`, '줄 섰어요 ✋', '성공');
       if (lead) body += `<button class="btn ghost" id="redraw">🎲 다른 키워드로 다시 뽑기</button>`;
     }
@@ -389,6 +389,14 @@
     bindTimer(); bindGate(R, () => { clear('secret'); stage('secret'); });
   }
 
+  // 조마다 문제 은행에서 3문제를 고르되, 같은 조는 같은 문제(조 번호 + 되돌리기 횟수로 고정)
+  function quizPicks() {
+    let seed = (S.master ? 99 : +S.group || 1) * 7919 + gen('quiz') * 104729;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const idx = D.QUIZ.map((_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    return idx.slice(0, D.QUIZ_N).map(i => D.QUIZ[i]);
+  }
   // 퀴즈: 201호 문 앞 QR을 찍어야 열림. 각자 풀고, 리더가 성공을 누르면 조 전체가 넘어감
   function quiz(head) {
     const R = `quiz.g${gen('quiz')}`;
@@ -398,15 +406,15 @@
       const f = document.getElementById('forceopen'); if (f) f.onclick = () => { S.unlock.quiz = 1; save(); quiz(head); };
       return;
     }
-    const i = S.quizPass.length;
-    if (i >= D.QUIZ.length) {
+    const picks = quizPicks(), i = S.quizPass.length;
+    if (i >= picks.length) {
       if (!iAmReady(R)) gset('rdy.' + R + '.' + S.name, 1);
       shell(head + `<div class="ok-box">내 퀴즈 완료! 🎉 조원들을 기다려요</div>` + gateHTML(R, null, '성공'), { back: '#/road' });
       bindGate(R, () => { clear('quiz'); stage('quiz'); });
       return;
     }
-    const q = D.QUIZ[i];
-    shell(head + `<div class="q"><small>${i + 1} / ${D.QUIZ.length}</small><p>${q.q}</p>${q.a.map((a, j) => `<button class="opt" data-j="${j}">${a}</button>`).join('')}<div class="msg" id="msg"></div></div>`, { back: '#/road' });
+    const q = picks[i];
+    shell(head + `<div class="q"><small>${i + 1} / ${picks.length}</small><p>${q.q}</p>${q.a.map((a, j) => `<button class="opt" data-j="${j}">${a}</button>`).join('')}<div class="msg" id="msg"></div></div>`, { back: '#/road' });
     document.querySelectorAll('.opt').forEach(b => b.onclick = () => {
       if (+b.dataset.j === q.c) { S.quizPass.push(i); save(); quiz(head); }
       else { b.classList.add('wrong'); b.disabled = true; document.getElementById('msg').textContent = '아쉬워요, 조원들과 함께 다시 생각해 보세요.'; }
@@ -461,19 +469,39 @@
     const R = `oyat.g${gen('oyat')}`;
     if (!iAmReady(R)) {
       shell(head + `<label>나를 위한 한 줄 기도</label><textarea id="p1" rows="2" maxlength="200" placeholder="예: 주님, 오늘 제 마음에 쉼을 주세요"></textarea>
-        <label>옆 사람을 위한 한 줄 기도 (선택)</label><textarea id="p2" rows="2" maxlength="200" placeholder="예: 옆에 있는 친구에게도 평안을 주세요"></textarea>
+        <label>옆 사람을 위한 한 줄 기도</label><textarea id="p2" rows="2" maxlength="200" placeholder="예: 옆에 있는 친구에게도 평안을 주세요"></textarea>
         <button class="btn" id="sub">기도 보내기</button><div class="msg" id="msg"></div>
-        <p class="hint">조 번호(${groupLabel()})와 이름이 함께 저장됩니다. 당일 화면에는 공개하지 않아요.</p>`, { back: '#/road' });
+        <p class="hint">조 번호(${groupLabel()})와 이름이 함께 저장됩니다. 조원에게만 보이고 전체 공개는 하지 않아요.</p>`, { back: '#/road' });
       document.getElementById('sub').onclick = () => {
         const p1 = document.getElementById('p1').value.trim(), p2 = document.getElementById('p2').value.trim();
-        if (!p1) return (document.getElementById('msg').textContent = '나를 위한 기도를 한 줄 적어 주세요.');
+        if (!p1 || !p2) return (document.getElementById('msg').textContent = '나를 위한 기도와 옆 사람을 위한 기도를 모두 한 줄씩 적어 주세요.');
         send('prayer', { name: S.name, mine: p1, neighbor: p2 }); gset('pr.' + R + '.' + S.name, { m: p1, n: p2 }); gset('rdy.' + R + '.' + S.name, 1); oyat(head);
       };
       return;
     }
     const prs = gkeys('pr.' + R + '.').map(k => { const v = gv('pr.' + R + '.' + k.slice(('pr.' + R + '.').length)) || {}; return `<div class="brief"><b>${esc(k.slice(('pr.' + R + '.').length))}</b><br>${esc(v.m || '')}${v.n ? '<br><small>옆 사람: ' + esc(v.n) + '</small>' : ''}</div>`; }).join('');
-    shell(head + `<div class="ok-box">기도문을 보냈어요 🙏 (${rdyCount(R)}/${totalMembers()}명)</div><p class="brief">조원들의 기도제목이에요. 서로를 위해 함께 기도해 주세요. 기도를 마치면 리더가 성공을 눌러요.</p>${prs}` + gateHTML(R, null, '기도 마치고 다음으로'), { back: '#/road' });
-    bindGate(R, () => { clear('oyat'); stage('oyat'); });
+    const hasPhoto = !!gv('photo.' + R);
+    const photoBox = hasPhoto ? `<div class="ok-box">📷 십자가·돌비석 사진 업로드 완료!</div>`
+      : `<h3>📷 오얏봉 십자가와 돌비석 앞 단체 사진</h3><p class="hint">십자가와 돌비석이 함께 나오게 조원이 모두 모여 한 장! 조원 중 한 명만 올리면 돼요.</p>
+        <label class="btn alt filebtn">📷 사진 찍기/선택<input type="file" id="ph" accept="image/*" hidden></label><img id="prev" class="prev" hidden><div class="msg" id="msg"></div>`;
+    shell(head + `<div class="ok-box">기도문을 보냈어요 🙏 (${rdyCount(R)}/${totalMembers()}명)</div><p class="brief">조원들의 기도제목이에요. 서로를 위해 함께 기도해 주세요. 기도를 마치면 리더가 성공을 눌러요.</p>${prs}${photoBox}` + gateHTML(R, null, '기도 마치고 다음으로'), { back: '#/road' });
+    const ph = document.getElementById('ph');
+    if (ph) ph.onchange = async () => {
+      const f = ph.files[0]; if (!f) return;
+      const msg = document.getElementById('msg'); msg.textContent = '사진 처리 중…';
+      try {
+        const data = await shrink(f);
+        const img = document.getElementById('prev'); img.src = data; img.hidden = false;
+        send('photo', { name: S.name, image: data, stage: 'oyat' });
+        gset('photo.' + R, 1);
+        msg.textContent = '업로드 중이에요!';
+        setTimeout(() => oyat(head), 1000);
+      } catch (e) { msg.textContent = '사진을 읽지 못했어요. 다시 시도해 주세요.'; }
+    };
+    bindGate(R, () => {
+      if (!gv('photo.' + R) && !S.master && !confirm('아직 사진을 안 올렸어요. 그래도 성공 처리할까요? (스태프에게 사진 확인)')) return;
+      clear('oyat'); stage('oyat');
+    });
   }
 
   function mainStage(head) {
